@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import React, { useContext, useMemo, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import {
   css,
   DatasourceType,
@@ -322,7 +322,7 @@ export default function DataSourcePanel({
             </StyledInfoboxWrapper>
           )}
           <AutoSizer>
-            {({ height }) => (
+            {({ height }: { height: number }) => (
               <List
                 width={width - BORDER_WIDTH}
                 height={height}

@@ -44,8 +44,8 @@ from superset.utils.pandas_postprocessing.utils import FLAT_COLUMN_SEPARATOR
 from tests.integration_tests.base_tests import SupersetTestCase
 from tests.integration_tests.conftest import only_postgresql, only_sqlite
 from tests.integration_tests.fixtures.birth_names_dashboard import (
-    load_birth_names_dashboard_with_slices,
-    load_birth_names_data,
+    load_birth_names_dashboard_with_slices,  # noqa: F401
+    load_birth_names_data,  # noqa: F401
 )
 from tests.integration_tests.fixtures.query_context import get_query_context
 
@@ -151,8 +151,12 @@ class TestQueryContext(SupersetTestCase):
         description_original = datasource.description
         datasource.description = "temporary description"
         db.session.commit()
+        # wait a second since mysql records timestamps in second granularity
+        time.sleep(1)
         datasource.description = description_original
         db.session.commit()
+        # wait another second because why not
+        time.sleep(1)
 
         # create new QueryContext with unchanged attributes, extract new query_cache_key
         query_context = ChartDataQueryContextSchema().load(payload)
@@ -550,9 +554,9 @@ class TestQueryContext(SupersetTestCase):
         query_context = ChartDataQueryContextSchema().load(payload)
         query_object = query_context.queries[0]
         # query without cache
-        query_context.processing_time_offsets(df, query_object)
+        query_context.processing_time_offsets(df.copy(), query_object)
         # query with cache
-        rv = query_context.processing_time_offsets(df, query_object)
+        rv = query_context.processing_time_offsets(df.copy(), query_object)
         cache_keys = rv["cache_keys"]
         cache_keys__1_year_ago = cache_keys[0]
         cache_keys__1_year_later = cache_keys[1]
@@ -564,7 +568,7 @@ class TestQueryContext(SupersetTestCase):
         payload["queries"][0]["time_offsets"] = ["1 year later", "1 year ago"]
         query_context = ChartDataQueryContextSchema().load(payload)
         query_object = query_context.queries[0]
-        rv = query_context.processing_time_offsets(df, query_object)
+        rv = query_context.processing_time_offsets(df.copy(), query_object)
         cache_keys = rv["cache_keys"]
         self.assertEqual(cache_keys__1_year_ago, cache_keys[1])
         self.assertEqual(cache_keys__1_year_later, cache_keys[0])
@@ -574,10 +578,11 @@ class TestQueryContext(SupersetTestCase):
         query_context = ChartDataQueryContextSchema().load(payload)
         query_object = query_context.queries[0]
         rv = query_context.processing_time_offsets(
-            df,
+            df.copy(),
             query_object,
         )
-        self.assertIs(rv["df"], df)
+
+        self.assertEqual(rv["df"].shape, df.shape)
         self.assertEqual(rv["queries"], [])
         self.assertEqual(rv["cache_keys"], [])
 
@@ -1163,3 +1168,34 @@ OFFSET 0
         re.search(r"WHERE\n  col6 >= .*2001-10-01", sqls[1])
         and re.search(r"AND col6 < .*2002-10-01", sqls[1])
     ) is not None
+
+
+def test_virtual_dataset_with_comments(app_context, virtual_dataset_with_comments):
+    qc = QueryContextFactory().create(
+        datasource={
+            "type": virtual_dataset_with_comments.type,
+            "id": virtual_dataset_with_comments.id,
+        },
+        queries=[
+            {
+                "columns": ["col1", "col2"],
+                "metrics": ["count"],
+                "post_processing": [
+                    {
+                        "operation": "pivot",
+                        "options": {
+                            "aggregates": {"count": {"operator": "mean"}},
+                            "columns": ["col2"],
+                            "index": ["col1"],
+                        },
+                    },
+                    {"operation": "flatten"},
+                ],
+            }
+        ],
+        result_type=ChartDataResultType.FULL,
+        force=True,
+    )
+    query_object = qc.queries[0]
+    df = qc.get_df_payload(query_object)["df"]
+    assert len(df) == 3

@@ -358,7 +358,54 @@ class OAuth2Error(SupersetErrorException):
         )
 
 
+class DisallowedSQLFunction(SupersetErrorException):
+    """
+    Disallowed function found on SQL statement
+    """
+
+    def __init__(self, functions: set[str]):
+        super().__init__(
+            SupersetError(
+                message=f"SQL statement contains disallowed function(s): {functions}",
+                error_type=SupersetErrorType.SYNTAX_ERROR,
+                level=ErrorLevel.ERROR,
+            )
+        )
+
+
 class CreateKeyValueDistributedLockFailedException(Exception):
     """
     Exception to signalize failure to acquire lock.
     """
+
+
+class DeleteKeyValueDistributedLockFailedException(Exception):
+    """
+    Exception to signalize failure to delete lock.
+    """
+
+
+class DatabaseNotFoundException(SupersetErrorException):
+    status = 404
+
+    def __init__(self, message: str):
+        super().__init__(
+            SupersetError(
+                message=message,
+                error_type=SupersetErrorType.DATABASE_NOT_FOUND_ERROR,
+                level=ErrorLevel.ERROR,
+            )
+        )
+
+
+class TableNotFoundException(SupersetErrorException):
+    status = 404
+
+    def __init__(self, message: str):
+        super().__init__(
+            SupersetError(
+                message=message,
+                error_type=SupersetErrorType.TABLE_NOT_FOUND_ERROR,
+                level=ErrorLevel.ERROR,
+            )
+        )
